@@ -39,12 +39,12 @@ int clawMode = 0;
 int flipMode = 0;
 
 struct nameMotor {
-  const char* name;
   motor &m;
+  const char* name;
 };
 #define NAMED(mtr) { mtr, #mtr }
 
-nameMotor motors[] = {
+nameMotor driveMotors[] = {
   NAMED(left_front),
   NAMED(left_back),
   NAMED(right_front),
@@ -59,44 +59,47 @@ const int YOFFSET = 20;
 const int ROW_HEIGHT = 30;
 
 void motorDisplay(int y, double curr, double temp){
-  Brain.Screen.setFillcolor(transparent);
+  Brain.Screen.setFillColor(transparent);
   Brain.Screen.printAt(5, YOFFSET + y, "Current %.1fA", curr);
   if (curr < 1){
-    Brain.Screen.setFillcolor(green);
+    Brain.Screen.setFillColor(green);
+  }
   else if (curr <= 2.5){
-    Brain.Screen.setFillcolor(yellow);
+    Brain.Screen.setFillColor(yellow);
   }
   else {
-    Brain.Screen.setFillcolor(red);
+    Brain.Screen.setFillColor(red);
   }
   Brain.Screen.drawRectangle(140, YOFFSET + y - 15, 15, 15);
 
-  Brain.Screen.setFillcolor(transparent);
+  Brain.Screen.setFillColor(transparent);
   Brain.Screen.printAt(160, YOFFSET + y, "Temp %.1fC", temp);
   if (temp < 45){
-    Brain.Screen.setFillcolor(green);
+    Brain.Screen.setFillColor(green);
   }
   else if (temp <= 50){
-    Brain.Screen.setFillcolor(yellow);
+    Brain.Screen.setFillColor(yellow);
   }
   else {
-    Brain.Screen.setFillcolor(red);
+    Brain.Screen.setFillColor(red);
   }
   Brain.Screen.drawRectangle(275, YOFFSET + y - 15, 15, 15);
-  Brain.Screen.setFillcolor(transparent);
+  Brain.Screen.setFillColor(transparent);
 }
 
 void displayMotorData() {
-  Brain.Screen.clearScreen();
-  Brain.Screen.setFont(mono20);
-  Brain.Screen.setFillcolor(transparent);
-  Brain.Screen.printAt(5, 5, "Motor Data");
   for (int i = 0; i < NUM_DRIVE_MOTORS; i++) {
-    double curr = motors[i].m.current();
-    double temp = motors[i].m.temperature(celsius);
-    Brain.Screen.printAt(5, YOFFSET + i * ROW_HEIGHT, "%s", motors[i].name);
-    motorDisplay(i * ROW_HEIGHT, curr, temp);
-  }
+    nameMotor &nm = driveMotors[i];
+    int y = 1+ i * ROW_HEIGHT;
+
+    if (nm.m.installed()){
+      motorDisplay(y, nm.m.current(amp), nm.m.temperature(celsius));
+      Brain.Screen.printAt(300, YOFFSET + y, nm.name);
+    }
+    else {
+      Brain.Screen.printAt(5, YOFFSET + y,true, "%s Problem", nm.name);
+    }
+}
 }
 // ============================================================
 // ODOMETRY STARTER  (drive-motor encoders + IMU heading)
@@ -495,7 +498,7 @@ void usercontrol(void) {
     // Insert user code here. This is where you use the joystick values to
     // update your motors, etc.
     // ........................................................................
-    DisplayMotorData();
+    displayMotorData();
 
     int forward_raw = Controller1.Axis3.position(pct);
     int turn_raw = Controller1.Axis1.position(pct);
