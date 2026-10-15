@@ -272,49 +272,76 @@ void turnToHeading(double targetDeg, double timeoutMs = 2000) {
 //   inches     : distance to travel, e.g. 24 or -12
 //   maxPct     : speed cap in percent (0-100)
 //   timeoutMs  : give up after this long
-void inchDrive(double inches, double maxPct = 80, double timeoutMs = 4000) {
-  const double kP = 7.0;          // percent per inch of distance error
-  const double kD = 0.4;          // damping, reduces overshoot
-  const double kP_heading = 1.25; // percent per degree of heading error
-  const double minPct = 12;       // keeps the robot moving through the last inch
-  const double tolerance = 0.5;   // inches
+// void inchDrive(double inches, double maxPct = 80, double timeoutMs = 4000) {
+//   const double kP = 7.0;          // percent per inch of distance error
+//   const double kD = 0.4;          // damping, reduces overshoot
+//   const double kP_heading = 1.25; // percent per degree of heading error
+//   const double minPct = 12;       // keeps the robot moving through the last inch
+//   const double tolerance = 0.5;   // inches
 
-  double startLeft  = leftSideDegrees();
-  double startRight = rightSideDegrees();
-  double holdHeading = getHeading();   // keep facing this way the whole drive
+//   double startLeft  = leftSideDegrees();
+//   double startRight = rightSideDegrees();
+//   double holdHeading = getHeading();   // keep facing this way the whole drive
 
-  double start = Brain.timer(msec);
-  double prevError = inches;
-  int settled = 0;
+//   double start = Brain.timer(msec);
+//   double prevError = inches;
+//   int settled = 0;
 
-  while (Brain.timer(msec) - start < timeoutMs) {
-    // Distance traveled since the call started
-    double traveled = ((leftSideDegrees()  - startLeft) +
-                       (rightSideDegrees() - startRight)) / 2.0 * IN_PER_DEG;
-    double error = inches - traveled;
+//   while (Brain.timer(msec) - start < timeoutMs) {
+//     // Distance traveled since the call started
+//     double traveled = ((leftSideDegrees()  - startLeft) +
+//                        (rightSideDegrees() - startRight)) / 2.0 * IN_PER_DEG;
+//     double error = inches - traveled;
 
-    // Done once we've been inside tolerance for 5 loops (50 ms)
-    if (fabs(error) < tolerance) {
-      if (++settled >= 5) break;
-    } else {
-      settled = 0;
-    }
+//     // Done once we've been inside tolerance for 5 loops (50 ms)
+//     if (fabs(error) < tolerance) {
+//       if (++settled >= 5) break;
+//     } else {
+//       settled = 0;
+//     }
 
-    double fwd = kP * error + kD * (error - prevError) / 0.01;
-    prevError = error;
+//     double fwd = kP * error + kD * (error - prevError) / 0.01;
+//     prevError = error;
 
-    // Clamp to maxPct, but never below minPct (keeps the sign)
-    if (fwd > maxPct)  fwd = maxPct;
-    if (fwd < -maxPct) fwd = -maxPct;
-    if (fabs(fwd) < minPct) fwd = (error > 0) ? minPct : -minPct;
+//     // Clamp to maxPct, but never below minPct (keeps the sign)
+//     if (fwd > maxPct)  fwd = maxPct;
+//     if (fwd < -maxPct) fwd = -maxPct;
+//     if (fabs(fwd) < minPct) fwd = (error > 0) ? minPct : -minPct;
 
-    // Steer back toward the starting heading (positive error = turn clockwise)
-    double turn = kP_heading * wrap180(holdHeading - getHeading());
+//     // Steer back toward the starting heading (positive error = turn clockwise)
+//     double turn = kP_heading * wrap180(holdHeading - getHeading());
 
-    drivePercent(fwd + turn, fwd - turn);
-    wait(10, msec);
+//     drivePercent(fwd + turn, fwd - turn);
+//     wait(10, msec);
+//   }
+//   stopDrive();
+// }
+void drive(int left_speed, int right_speed, int wt) {
+  left_front.spin(forward, left_speed, pct);
+  left_back.spin(reverse, left_speed, pct);
+
+  right_front.spin(forward, right_speed, pct);
+  right_back.spin(reverse, right_speed, pct);
+
+  wait(wt, msec);
+}
+
+void drive_brake() {
+  left_front.stop(brake);
+  left_back.stop(brake);
+
+  right_front.stop(brake);
+  right_back.stop(brake);
+}
+
+void inchDrive(int target, int speed){
+  float x = 0.0;
+  left_front.setPosition(0.0, rev);
+  while(x <= target){
+    drive(speed, speed, 10);
+    x=left_front.position(rev)*3.14*WHEEL_DIAMETER_IN*GEAR_RATIO;
   }
-  stopDrive();
+  drive_brake();
 }
 
 // ============================================================
@@ -352,24 +379,6 @@ constexpr double TIP_ANGLE_THRESHOLD_DEG = 12.0; // pitch angle considered "tipp
 /*---------------------------------------------------------------------------*/
 /*                              Helper Functions                             */
 /*---------------------------------------------------------------------------*/
-
-void drive(int left_speed, int right_speed, int wt) {
-  left_front.spin(forward, left_speed, pct);
-  left_back.spin(reverse, left_speed, pct);
-
-  right_front.spin(forward, right_speed, pct);
-  right_back.spin(reverse, right_speed, pct);
-
-  wait(wt, msec);
-}
-
-void drive_brake() {
-  left_front.stop(brake);
-  left_back.stop(brake);
-
-  right_front.stop(brake);
-  right_back.stop(brake);
-}
 
 void claw_hold() {
   claw.stop(hold);
@@ -474,6 +483,7 @@ void autonomous(void) {
   // Insert autonomous user code here.
   // ..........................................................................
   inchDrive(5, 100);
+  turnToHeading(90);
   
 }
 
