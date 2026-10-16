@@ -33,11 +33,8 @@ motor left_back = motor(PORT5, ratio6_1, false);
 motor right_front = motor(PORT15, ratio6_1, false);
 motor right_back = motor(PORT9, ratio6_1, true);
 
-// WARNING: left_lift and claw are both on PORT20. One of them is probably a typo.
 motor left_lift = motor(PORT20, ratio18_1, false);
 motor right_lift = motor(PORT14, ratio18_1, true);
-
-motor claw = motor(PORT20, ratio6_1, true);
 
 int clawMode = 0;
 int flipMode = 0;
@@ -58,8 +55,7 @@ nameMotor driveMotors[] = {
   NAMED(right_front),
   NAMED(right_back),
   NAMED(left_lift),
-  NAMED(right_lift),
-  NAMED(claw)
+  NAMED(right_lift)
 };
 
 const int NUM_DRIVE_MOTORS = sizeof(driveMotors) / sizeof(driveMotors[0]);
@@ -384,18 +380,9 @@ void liftFor(double deg, int speed = 100, bool wait = false) {
 /*                              Helper Functions                             */
 /*---------------------------------------------------------------------------*/
 
-void claw_hold() {
-  claw.stop(hold);
-  claw.setVelocity(100, percent);
-}
-
 void lift(directionType dir, int speed) {
   left_lift.spin(dir, speed, pct);
   right_lift.spin(dir, speed, pct);
-}
-
-void claws(directionType dir, int speed) {
-  claw.spin(dir, speed, pct);
 }
 
 bool is_tipping() {
@@ -426,7 +413,6 @@ void pre_auton(void) {
   Brain.Screen.setCursor(1, 1);
   Brain.Screen.print("IMU Calibrated");
   drive_brake();
-  claw_hold();
 }
 
 /*---------------------------------------------------------------------------*/
@@ -534,9 +520,6 @@ int main() {
   // Set up callbacks for autonomous and driver control periods.
   Competition.autonomous(autonomous);
   Competition.drivercontrol(usercontrol);
-
-  drive_brake();
-  claw_hold();
 
   // Run the pre-autonomous function.
   pre_auton();
