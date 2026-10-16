@@ -2,7 +2,7 @@
 /*                                                                            */
 /*    Module:       main.cpp                                                  */
 /*    Author:       student                                                   */
-/*    Created:      10-12-26                                  */
+/*    Created:      10-12-26                                                  */
 /*    Description:  V5 project                                                */
 /*                                                                            */
 /*----------------------------------------------------------------------------*/
@@ -24,12 +24,16 @@ pneumatics flipPiston = pneumatics(Brain.ThreeWirePort.H);
 inertial imu = inertial(PORT17);
 inertial Gyro = inertial(PORT1);
 
+// Drive motors. NOTE: the back motors are driven with `reverse` in drive() and
+// drivePercent(), which is why their reversal flags are the opposite of the
+// front motors on the same side.
 motor left_front = motor(PORT19, ratio6_1, true);
 motor left_back = motor(PORT5, ratio6_1, false);
 
 motor right_front = motor(PORT15, ratio6_1, false);
 motor right_back = motor(PORT9, ratio6_1, true);
 
+// WARNING: left_lift and claw are both on PORT20. One of them is probably a typo.
 motor left_lift = motor(PORT20, ratio18_1, false);
 motor right_lift = motor(PORT14, ratio18_1, true);
 
@@ -37,6 +41,10 @@ motor claw = motor(PORT20, ratio6_1, true);
 
 int clawMode = 0;
 int flipMode = 0;
+
+/*---------------------------------------------------------------------------*/
+/*                          Motor monitor (Brain screen)                     */
+/*---------------------------------------------------------------------------*/
 
 struct nameMotor {
   motor &m;
@@ -90,31 +98,80 @@ void motorDisplay(int y, double curr, double temp){
 void displayMotorData() {
   for (int i = 0; i < NUM_DRIVE_MOTORS; i++) {
     nameMotor &nm = driveMotors[i];
-    int y = 1+ i * ROW_HEIGHT;
+    int y = 1 + i * ROW_HEIGHT;
 
     if (nm.m.installed()){
       motorDisplay(y, nm.m.current(amp), nm.m.temperature(celsius));
       Brain.Screen.printAt(300, YOFFSET + y, nm.name);
     }
     else {
-      Brain.Screen.printAt(5, YOFFSET + y,true, "%s Problem", nm.name);
+      Brain.Screen.printAt(5, YOFFSET + y, true, "%s Problem", nm.name);
     }
+  }
 }
+
+/*---------------------------------------------------------------------------*/
+/*                              Tunable Constants                            */
+/*---------------------------------------------------------------------------*/
+
+constexpr int    JOYSTICK_DEADBAND   = 5;      // pct, ignore small stick drift
+constexpr float  TURN_SENSITIVITY_K  = 0.5f;   // scales turn contribution in arcade drive
+constexpr float  SLOW_MODE_FACTOR    = 0.4f;   // speed multiplier when ButtonB held
+
+constexpr double TIP_ANGLE_THRESHOLD_DEG = 12.0; // pitch angle considered "tipping"
+
+/*---------------------------------------------------------------------------*/
+/*                       Basic drive helpers (driver + auton)                */
+/*---------------------------------------------------------------------------*/
+
+// Arcade/tank drive. Left/right speed in percent (-100 to 100).
+// wt = how long to wait afterwards (ms).
+void drive(int left_speed, int right_speed, int wt) {
+  left_front.spin(forward, left_speed, pct);
+  left_back.spin(reverse, left_speed, pct);
+
+  right_front.spin(forward, right_speed, pct);
+  right_back.spin(reverse, right_speed, pct);
+
+  wait(wt, msec);
 }
-// ============================================================
-// ODOMETRY STARTER  (drive-motor encoders + IMU heading)
-// Paste this below `int flipMode = 0;` in your main.cpp
-//
-// Field coordinates (inches):
-//   +Y = forward at heading 0, +X = right, heading is CLOCKWISE-positive degrees
-//   (this matches how the VEX inertial sensor reports rotation)
-// ============================================================
+
+void drive_brake() {
+  left_front.stop(brake);
+  left_back.stop(brake);
+
+  right_front.stop(brake);
+  right_back.stop(brake);
+}
+
+void drive_coast() {
+  left_front.stop(coast);
+  left_back.stop(coast);
+
+  right_front.stop(coast);
+  right_back.stop(coast);
+}
+
+// Same as drive() but takes doubles and never waits (used by the auton PID loops)
+void drivePercent(double leftPct, double rightPct) {
+  left_front.spin(forward, leftPct, percent);
+  left_back.spin(reverse, leftPct, percent);
+
+  right_front.spin(forward, rightPct, percent);
+  right_back.spin(reverse, rightPct, percent);
+}
+
+/*---------------------------------------------------------------------------*/
+/*                  Odometry (drive encoders + IMU heading)                  */
+/*                                                                           */
+/*  Field coordinates in inches: +Y = forward at heading 0, +X = right.      */
+/*  Heading is in degrees, clockwise positive (matches the IMU).             */
+/*---------------------------------------------------------------------------*/
 
 // ---------- CONFIG: change these to match your robot ----------
-const double WHEEL_DIAMETER_IN = 3.25;  // 2.75, 3.25 or 4.0 for standard VEX omnis
-const double GEAR_RATIO        = 4.0/3.0;   // wheel turns per ONE motor turn
-                                        // (e.g. 48T motor gear -> 36T wheel gear = 48/36... see note below)
-                                        // = (driving teeth) / (driven teeth)
+const double WHEEL_DIAMETER_IN = 3.25;      // 2.75, 3.25 or 4.0 for standard VEX omnis
+const double GEAR_RATIO        = 4.0 / 3.0; // wheel turns per ONE motor turn
+                                            // = (driving teeth) / (driven teeth)
 const double IN_PER_DEG = (M_PI * WHEEL_DIAMETER_IN * GEAR_RATIO) / 360.0;
 
 // ---------- Robot pose (shared between threads) ----------
@@ -125,17 +182,20 @@ double poseHeading = 0.0;  // degrees, clockwise positive (from IMU)
 
 // ---------- Helpers ----------
 double wrap180(double deg) {
-  while (deg > 180.0)  deg -= 360.0;
+  while (deg > 180.0)   deg -= 360.0;
   while (deg <= -180.0) deg += 360.0;
   return deg;
 }
 
+// Each side's travel in motor degrees. The back motors are spun in `reverse`
+// (see drive()), so their encoders count NEGATIVE when the robot drives
+// forward. We subtract them so all four encoders add up instead of cancelling.
 double leftSideDegrees() {
-  return (left_front.position(degrees) + left_back.position(degrees)) / 2.0;
+  return (left_front.position(degrees) - left_back.position(degrees)) / 2.0;
 }
 
 double rightSideDegrees() {
-  return (right_front.position(degrees) + right_back.position(degrees)) / 2.0;
+  return (right_front.position(degrees) - right_back.position(degrees)) / 2.0;
 }
 
 void setPose(double x, double y, double headingDeg) {
@@ -189,7 +249,10 @@ int odometryLoop() {
   return 0;
 }
 
-// ---------- Brain screen debug ----------
+// ---------- Optional Brain screen pose readout ----------
+// NOT started by default: it clears the whole screen and would fight with
+// displayMotorData() in driver control. To use it for testing, add
+// `task dispTask(displayLoop);` at the end of initOdometry().
 int displayLoop() {
   while (true) {
     Brain.Screen.clearScreen();
@@ -205,9 +268,10 @@ int displayLoop() {
 }
 
 // ---------- Call this once from pre_auton() ----------
+// Robot must be sitting still while the IMU calibrates.
 void initOdometry() {
   imu.calibrate();
-  while (imu.isCalibrating()) wait(20, msec);   // IMU MUST finish calibrating, robot must be still
+  while (imu.isCalibrating()) wait(20, msec);
 
   left_front.resetPosition();  left_back.resetPosition();
   right_front.resetPosition(); right_back.resetPosition();
@@ -216,54 +280,47 @@ void initOdometry() {
   setPose(0, 0, 0);
 
   task odomTask(odometryLoop);
-  task dispTask(displayLoop);
 }
 
-// ============================================================
-// OPTIONAL: simple motion helpers that use the pose above
-// ============================================================
-// Spin each side of the drive at a percent speed (-100 to 100)
-void drivePercent(double leftPct, double rightPct) {
-  left_front.spin(forward, leftPct, percent);
-  left_back.spin(forward, leftPct, percent);
-  right_front.spin(forward, rightPct, percent);
-  right_back.spin(forward, rightPct, percent);
-}
+/*---------------------------------------------------------------------------*/
+/*                        Autonomous motion functions                        */
+/*---------------------------------------------------------------------------*/
 
-void driveVolts(double leftPct, double rightPct) {
-  double leftVolts = leftPct * 12.0 / 100.0;
-  double rightVolts = rightPct * 12.0 / 100.0;
-  left_front.spin(forward, leftVolts, voltageUnits::volt);
-  left_back.spin(forward, leftVolts, voltageUnits::volt);
-  right_front.spin(forward, rightVolts, voltageUnits::volt);
-  right_back.spin(forward, rightVolts, voltageUnits::volt);
-}
+// Turn in place to an absolute field heading (degrees).
+//   targetDeg  : field heading to face (0 = +Y, clockwise positive)
+//   maxPct     : turn speed cap in percent (0-100)
+//   timeoutMs  : give up after this long
+void turnToHeading(double targetDeg, double maxPct = 70, double timeoutMs = 2000) {
+  const double kP = 0.2;          // percent per degree of error
+  const double kD = 6.0;          // damping: fights overshoot
+  const double minPct = 10;       // enough power to actually move the drive
+  const double tolerance = 1;   // degrees
 
-void stopDrive() {
-  left_front.stop(brake);  left_back.stop(brake);
-  right_front.stop(brake); right_back.stop(brake);
-}
-
-void stopDriveCoast() {
-  left_front.stop(coast);  left_back.stop(coast);
-  right_front.stop(coast); right_back.stop(coast);
-}
-
-// Turn in place to an absolute field heading (degrees)
-void turnToHeading(double targetDeg, double timeoutMs = 2000) {
-  const double kP = 1.0;          // percent per degree of error
-  const double maxPct = 80;       // turn speed cap
   double start = Brain.timer(msec);
+  double prevErr = wrap180(targetDeg - imu.rotation(degrees));
+  int settled = 0;
+
   while (Brain.timer(msec) - start < timeoutMs) {
-    double err = wrap180(targetDeg - getHeading());
-    if (fabs(err) < 1.0) break;
-    double v = kP * err;
-    if (v > maxPct) v = maxPct;
+    double err = wrap180(targetDeg - imu.rotation(degrees));
+
+    // Only finish after staying inside tolerance for 8 loops (80 ms)
+    if (fabs(err) < tolerance) {
+      if (++settled >= 8) break;
+    } else {
+      settled = 0;
+    }
+
+    double v = kP * err + kD * (err - prevErr);
+    prevErr = err;
+
+    if (v > maxPct)  v = maxPct;
     if (v < -maxPct) v = -maxPct;
-    drivePercent(v, -v);     // positive error = turn clockwise (left faster)
+    if (fabs(v) < minPct) v = (err > 0) ? minPct : -minPct;
+
+    drivePercent(v, -v);     // positive error = turn clockwise
     wait(10, msec);
   }
-  stopDrive();
+  drive_brake();
 }
 
 // Drive straight a set distance in inches (negative = backward).
@@ -272,110 +329,57 @@ void turnToHeading(double targetDeg, double timeoutMs = 2000) {
 //   inches     : distance to travel, e.g. 24 or -12
 //   maxPct     : speed cap in percent (0-100)
 //   timeoutMs  : give up after this long
-// void inchDrive(double inches, double maxPct = 80, double timeoutMs = 4000) {
-//   const double kP = 7.0;          // percent per inch of distance error
-//   const double kD = 0.4;          // damping, reduces overshoot
-//   const double kP_heading = 1.25; // percent per degree of heading error
-//   const double minPct = 12;       // keeps the robot moving through the last inch
-//   const double tolerance = 0.5;   // inches
+void inchDrive(double inches, double maxPct = 100, double timeoutMs = 4000) {
+  const double kP = 0.5;          // percent per inch of distance error
+  const double kD = 0.4;          // damping, reduces overshoot
+  const double kP_heading = 1.25; // percent per degree of heading error
+  const double minPct = 12;       // keeps the robot moving through the last inch
+  const double tolerance = 0.5;   // inches
 
-//   double startLeft  = leftSideDegrees();
-//   double startRight = rightSideDegrees();
-//   double holdHeading = getHeading();   // keep facing this way the whole drive
+  double startLeft  = leftSideDegrees();
+  double startRight = rightSideDegrees();
+  double holdHeading = imu.rotation(degrees);   // keep facing this way the whole drive
 
-//   double start = Brain.timer(msec);
-//   double prevError = inches;
-//   int settled = 0;
+  double start = Brain.timer(msec);
+  double prevError = inches;
+  int settled = 0;
 
-//   while (Brain.timer(msec) - start < timeoutMs) {
-//     // Distance traveled since the call started
-//     double traveled = ((leftSideDegrees()  - startLeft) +
-//                        (rightSideDegrees() - startRight)) / 2.0 * IN_PER_DEG;
-//     double error = inches - traveled;
+  while (Brain.timer(msec) - start < timeoutMs) {
+    // Distance traveled since the call started
+    double traveled = ((leftSideDegrees()  - startLeft) +
+                       (rightSideDegrees() - startRight)) / 2.0 * IN_PER_DEG;
+    double error = inches - traveled;
 
-//     // Done once we've been inside tolerance for 5 loops (50 ms)
-//     if (fabs(error) < tolerance) {
-//       if (++settled >= 5) break;
-//     } else {
-//       settled = 0;
-//     }
+    // Done once we've been inside tolerance for 5 loops (50 ms)
+    if (fabs(error) < tolerance) {
+      if (++settled >= 5) break;
+    } else {
+      settled = 0;
+    }
 
-//     double fwd = kP * error + kD * (error - prevError) / 0.01;
-//     prevError = error;
+    double fwd = kP * error + kD * (error - prevError) / 0.01;
+    prevError = error;
 
-//     // Clamp to maxPct, but never below minPct (keeps the sign)
-//     if (fwd > maxPct)  fwd = maxPct;
-//     if (fwd < -maxPct) fwd = -maxPct;
-//     if (fabs(fwd) < minPct) fwd = (error > 0) ? minPct : -minPct;
+    // Clamp to maxPct, but never below minPct (keeps the sign)
+    if (fwd > maxPct)  fwd = maxPct;
+    if (fwd < -maxPct) fwd = -maxPct;
+    if (fabs(fwd) < minPct) fwd = (error > 0) ? minPct : -minPct;
 
-//     // Steer back toward the starting heading (positive error = turn clockwise)
-//     double turn = kP_heading * wrap180(holdHeading - getHeading());
+    // Steer back toward the starting heading (positive error = turn clockwise)
+    double turn = kP_heading * wrap180(holdHeading - imu.rotation(degrees));
 
-//     drivePercent(fwd + turn, fwd - turn);
-//     wait(10, msec);
-//   }
-//   stopDrive();
-// }
-void drive(int left_speed, int right_speed, int wt) {
-  left_front.spin(forward, left_speed, pct);
-  left_back.spin(reverse, left_speed, pct);
-
-  right_front.spin(forward, right_speed, pct);
-  right_back.spin(reverse, right_speed, pct);
-
-  wait(wt, msec);
-}
-
-void drive_brake() {
-  left_front.stop(brake);
-  left_back.stop(brake);
-
-  right_front.stop(brake);
-  right_back.stop(brake);
-}
-
-void inchDrive(int target, int speed){
-  float x = 0.0;
-  left_front.setPosition(0.0, rev);
-  while(x <= target){
-    drive(speed, speed, 10);
-    x=left_front.position(rev)*3.14*WHEEL_DIAMETER_IN*GEAR_RATIO;
+    drivePercent(fwd + turn, fwd - turn);
+    wait(10, msec);
   }
   drive_brake();
 }
 
-// ============================================================
-// HOW TO USE
-// ============================================================
-// void pre_auton(void) {
-//   initOdometry();
-// }
-//
-// void autonomous(void) {
-//   setPose(0, 0, 0);
-//   inchDrive(24);           // 24 in straight ahead
-//   turnToHeading(90);       // face right
-//   inchDrive(24);           // 24 in to the right
-//   inchDrive(-12, 40);      // 12 in backward, capped at 40% speed
-// }
-
-
-/*---------------------------------------------------------------------------*/
-/*                              Tunable Constants                            */
-/*---------------------------------------------------------------------------*/
-
-constexpr int    JOYSTICK_DEADBAND   = 5;      // pct, ignore small stick drift
-constexpr float  TURN_SENSITIVITY_K  = 0.5f;   // scales turn contribution in arcade drive
-constexpr float  SLOW_MODE_FACTOR    = 0.4f;   // speed multiplier when ButtonB held
-
-constexpr double TURN_KP             = 2.0;    // proportional gain for turn_to_angle
-constexpr double TURN_TOLERANCE_DEG  = 1.0;    // acceptable heading error to stop
-constexpr double TURN_MIN_SPEED      = 6.0;    // minimum pct to overcome static friction
-constexpr int    TURN_TIMEOUT_MS     = 3000;   // safety cutoff if turn never settles
-constexpr int    TURN_SETTLE_LOOPS   = 3;      // consecutive in-tolerance loops required
-
-constexpr double TIP_ANGLE_THRESHOLD_DEG = 12.0; // pitch angle considered "tipping"
-
+void liftFor(double deg, int speed = 100, bool wait = false) {
+  left_lift.setStopping(hold);    // keep the arm up after it arrives
+  right_lift.setStopping(hold);
+  left_lift.spinFor(forward, deg, degrees, speed, velocityUnits::pct, false);
+  right_lift.spinFor(forward, deg, degrees, speed, velocityUnits::pct, wait);
+}
 /*---------------------------------------------------------------------------*/
 /*                              Helper Functions                             */
 /*---------------------------------------------------------------------------*/
@@ -392,44 +396,6 @@ void lift(directionType dir, int speed) {
 
 void claws(directionType dir, int speed) {
   claw.spin(dir, speed, pct);
-}
-
-void turn_to_angle(double target_angle, int max_speed) {
-  imu.setRotation(0, degrees);
-
-  timer tmr;
-  tmr.clear();
-
-  int settled_loops = 0;
-
-  while (true) {
-    double current_angle = imu.rotation(degrees);
-    double error = target_angle - current_angle;
-
-    if (fabs(error) < TURN_TOLERANCE_DEG) {
-      settled_loops++;
-      if (settled_loops >= TURN_SETTLE_LOOPS) {
-        break;
-      }
-    } else {
-      settled_loops = 0;
-    }
-
-    if (tmr.time(msec) > TURN_TIMEOUT_MS) {
-      break;
-    }
-
-    double speed = error * TURN_KP;
-
-    if (speed > max_speed) speed = max_speed;
-    if (speed < -max_speed) speed = -max_speed;
-
-    if (speed > 0 && speed < TURN_MIN_SPEED) speed = TURN_MIN_SPEED;
-    if (speed < 0 && speed > -TURN_MIN_SPEED) speed = -TURN_MIN_SPEED;
-
-    drive(speed, -speed, 10);
-  }
-  drive_brake();
 }
 
 bool is_tipping() {
@@ -449,65 +415,53 @@ void handle_tipping() {
 /*---------------------------------------------------------------------------*/
 /*                          Pre-Autonomous Functions                         */
 /*                                                                           */
-/*  You may want to perform some actions before the competition starts.      */
-/*  Do them in the following function.  You must return from this function   */
-/*  or the autonomous and usercontrol tasks will not be started.  This       */
-/*  function is only called once after the V5 has been powered on and        */
-/*  not every time that the robot is disabled.                               */
+/*  Runs once after the V5 powers on. Must return so that autonomous and     */
+/*  usercontrol can start.                                                   */
 /*---------------------------------------------------------------------------*/
 
 void pre_auton(void) {
-    Brain.Screen.print("Calibrating IMU");
-    initOdometry();
-    while (imu.isCalibrating()) {
-        wait(20, msec);
-    }
-    Brain.Screen.clearScreen();
-    Brain.Screen.print("IMU Calibrated");
-    drive_brake();
-    claw_hold();
+  Brain.Screen.print("Calibrating IMU");
+  initOdometry();   // calibrates the IMU (blocks until done), zeroes encoders, starts odometry
+  Brain.Screen.clearScreen();
+  Brain.Screen.setCursor(1, 1);
+  Brain.Screen.print("IMU Calibrated");
+  drive_brake();
+  claw_hold();
 }
 
 /*---------------------------------------------------------------------------*/
-/*                                                                           */
 /*                              Autonomous Task                              */
-/*                                                                           */
-/*  This task is used to control your robot during the autonomous phase of   */
-/*  a VEX Competition.                                                       */
-/*                                                                           */
-/*  You must modify the code to add your own robot specific commands here.   */
 /*---------------------------------------------------------------------------*/
 
 void autonomous(void) {
-  // ..........................................................................
-  // Insert autonomous user code here.
-  // ..........................................................................
-  inchDrive(5, 100);
+  // Examples:
+  //   inchDrive(24);        // 24 in forward
+  //   turnToHeading(90);    // face right (absolute heading)
+  //   inchDrive(-12, 40);   // 12 in backward, capped at 40% speed
+
+  inchDrive(15, 100);
+  wait(200, msec);
+  clawPiston.set(true);
+  liftFor(1566);
+  inchDrive(13, 100);
+  flipPiston.set(true);
   turnToHeading(90);
-  
+  wait(200,msec);
+  inchDrive(33,100);
+  liftFor(-1766);
+  wait(1.1 ,sec);
+  clawPiston.set(false);
+  wait(0.3 ,sec);
+  inchDrive(-40, 100);
+
 }
 
 /*---------------------------------------------------------------------------*/
-/*                                                                           */
 /*                              User Control Task                            */
-/*                                                                           */
-/*  This task is used to control your robot during the user control phase of */
-/*  a VEX Competition.                                                       */
-/*                                                                           */
-/*  You must modify the code to add your own robot specific commands here.   */
 /*---------------------------------------------------------------------------*/
 
 void usercontrol(void) {
-  // User control code here, inside the loop
   while (1) {
-    // This is the main execution loop for the user control program.
-    // Each time through the loop your program should update motor + servo
-    // values based on feedback from the joysticks.
-
-    // ........................................................................
-    // Insert user code here. This is where you use the joystick values to
-    // update your motors, etc.
-    // ........................................................................
     displayMotorData();
 
     int forward_raw = Controller1.Axis3.position(pct);
@@ -517,11 +471,11 @@ void usercontrol(void) {
     int turn_val = 0;
 
     if (abs(forward_raw) > JOYSTICK_DEADBAND) {
-        forward_val = forward_raw;
+      forward_val = forward_raw;
     }
 
     if (abs(turn_raw) > JOYSTICK_DEADBAND) {
-        turn_val = turn_raw;
+      turn_val = turn_raw;
     }
 
     float slow_factor = Controller1.ButtonB.pressing() ? SLOW_MODE_FACTOR : 1.0f;
@@ -532,7 +486,7 @@ void usercontrol(void) {
     drive(left_speed, right_speed, 0);
 
     if (Controller1.ButtonL1.pressing()) {
-      lift(fwd, 100);
+      lift(forward, 100);
     }
     else if (Controller1.ButtonL2.pressing()) {
       lift(reverse, 100);
@@ -543,20 +497,20 @@ void usercontrol(void) {
     }
 
     if (Controller1.ButtonR1.pressing()) {
-      clawMode ++;
-      if (clawMode % 2 == 0){
+      clawMode++;
+      if (clawMode % 2 == 0) {
         clawPiston.set(true);
         wait(0.5, sec);
       }
-      else{
+      else {
         clawPiston.set(false);
         wait(0.5, sec);
       }
-    } 
-    
+    }
+
     if (Controller1.ButtonR2.pressing()) {
-      flipMode ++;
-      if (flipMode % 2 == 0){
+      flipMode++;
+      if (flipMode % 2 == 0) {
         flipPiston.set(true);
         wait(0.5, sec);
       }
@@ -564,19 +518,14 @@ void usercontrol(void) {
         flipPiston.set(false);
         wait(0.5, sec);
       }
-    } 
-  }
-    //handle_tipping();
+    }
 
-    // Brain.Screen.print("Right Speed: ", right_speed);
-    // Brain.Screen.newLine();
-    // Brain.Screen.print("Left Speed: ", left_speed);
-    // Brain.Screen.newLine();
-
+    // handle_tipping();
 
     wait(20, msec); // Sleep the task for a short amount of time to
                     // prevent wasted resources.
   }
+}
 
 //
 // Main will set up the competition functions and callbacks.
