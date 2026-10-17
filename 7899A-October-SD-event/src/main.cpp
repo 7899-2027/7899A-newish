@@ -399,6 +399,16 @@ void handle_tipping() {
   }
 }
 
+void shake(int durationMs, int speed = 40) {
+    for (int i = 0; i < cycles; i++) {
+        drivePercent(speed, -speed);
+        wait(20, msec);
+        drivePercent(-speed, speed);
+        wait(20, msec);
+    }
+    drive_brake(); // Stop after shaking
+}
+
 /*---------------------------------------------------------------------------*/
 /*                          Pre-Autonomous Functions                         */
 /*                                                                           */
@@ -424,18 +434,24 @@ void autonomous(void) {
   //   inchDrive(24);        // 24 in forward
   //   turnToHeading(90);    // face right (absolute heading)
   //   inchDrive(-12, 40);   // 12 in backward, capped at 40% speed
-
-  inchDrive(15, 100);
-  wait(200, msec);
+  liftFor(150);
+  inchDrive(14, 100);
+  wait(1, sec);
   clawPiston.set(true);
-  liftFor(1566);
+  wait(0.7, sec);
+  liftFor(1416);
   inchDrive(13, 100);
   flipPiston.set(true);
   turnToHeading(90);
   wait(200,msec);
   inchDrive(33,100);
-  liftFor(-1766);
+  liftFor(-1166);
+  flipPiston.set(false);
+  wait(0.5, sec);
+  flipPiston.set(true);
+  liftFor(-600);
   wait(1.1 ,sec);
+  shake(1000, 100);
   clawPiston.set(false);
   wait(0.3 ,sec);
   inchDrive(-40, 100);
