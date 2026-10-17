@@ -111,7 +111,7 @@ void displayMotorData() {
 /*---------------------------------------------------------------------------*/
 
 constexpr int    JOYSTICK_DEADBAND   = 5;      // pct, ignore small stick drift
-constexpr float  TURN_SENSITIVITY_K  = 0.5f;   // scales turn contribution in arcade drive
+constexpr float  TURN_SENSITIVITY_K  = 0.7f;   // scales turn contribution in arcade drive
 constexpr float  SLOW_MODE_FACTOR    = 0.4f;   // speed multiplier when ButtonB held
 
 constexpr double TIP_ANGLE_THRESHOLD_DEG = 12.0; // pitch angle considered "tipping"
@@ -466,6 +466,15 @@ void usercontrol(void) {
 
     float slow_factor = Controller1.ButtonB.pressing() ? SLOW_MODE_FACTOR : 1.0f;
 
+    // if(Controller1.ButtonA.pressing()){
+    //   SlowDown++;
+    //   if(SlowDown % 2 = 1){
+    //     left_front.setVelocity(60, pct);
+    //     left_back.setVelocity(60, pct);
+    //     right_back.setVelocity(60, pct);
+    //     right_front.setVelocity(60, pct);
+    //   }
+    // }
     float left_speed = (forward_val + (TURN_SENSITIVITY_K * turn_val)) * slow_factor;
     float right_speed = (forward_val - (TURN_SENSITIVITY_K * turn_val)) * slow_factor;
 
