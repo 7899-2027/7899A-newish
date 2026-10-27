@@ -399,16 +399,6 @@ void handle_tipping() {
   }
 }
 
-void shake(int durationMs, int speed = 40) {
-    for (int i = 0; i < cycles; i++) {
-        drivePercent(speed, -speed);
-        wait(20, msec);
-        drivePercent(-speed, speed);
-        wait(20, msec);
-    }
-    drive_brake(); // Stop after shaking
-}
-
 /*---------------------------------------------------------------------------*/
 /*                          Pre-Autonomous Functions                         */
 /*                                                                           */
@@ -451,7 +441,6 @@ void autonomous(void) {
   flipPiston.set(true);
   liftFor(-600);
   wait(1.1 ,sec);
-  shake(1000, 100);
   clawPiston.set(false);
   wait(0.3 ,sec);
   inchDrive(-40, 100);
