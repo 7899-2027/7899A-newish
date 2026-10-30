@@ -652,26 +652,26 @@ void usercontrol(void) {
     if (Controller1.ButtonR1.pressing()) {
       clawMode++;
       if (clawMode % 2 == 0) {
-        clawPiston.set(true);
+        claw.spin(fwd, 100);
         wait(0.5, sec);
       }
       else {
-        clawPiston.set(false);
+        claw.spin(reverse, 100);
         wait(0.5, sec);
       }
     }
 
-    if (Controller1.ButtonR2.pressing()) {
-      flipMode++;
-      if (flipMode % 2 == 0) {
-        flipPiston.set(true);
-        wait(0.5, sec);
-      }
-      else {
-        flipPiston.set(false);
-        wait(0.5, sec);
-      }
-    }
+    // if (Controller1.ButtonR2.pressing()) {
+    //   flipMode++;
+    //   if (flipMode % 2 == 0) {
+    //     flipPiston.set(true);
+    //     wait(0.5, sec);
+    //   }
+    //   else {
+    //     flipPiston.set(false);
+    //     wait(0.5, sec);
+    //   }
+    // }
 >>>>>>> 6f00fb0903a9552ed6cd3003e927a9d065f0c801
 
     // handle_tipping();
