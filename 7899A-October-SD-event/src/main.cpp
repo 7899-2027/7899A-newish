@@ -36,11 +36,6 @@ motor right_back = motor(PORT9, ratio6_1, true);
 motor left_lift = motor(PORT20, ratio18_1, false);
 motor right_lift = motor(PORT14, ratio18_1, true);
 
-<<<<<<< HEAD
-motor claw = motor(PORT12, ratio18_1, true);
-
-=======
->>>>>>> 6f00fb0903a9552ed6cd3003e927a9d065f0c801
 int clawMode = 0;
 int flipMode = 0;
 
@@ -283,18 +278,8 @@ void initOdometry() {
   task odomTask(odometryLoop);
 }
 
-<<<<<<< HEAD
-// ============================================================
-// OPTIONAL: simple motion helpers that use the pose above
-// ============================================================
-// Spin each side of the drive at a percent speed (-100 to 100)
-void drivePercent(double leftPct, double rightPct) {
-  left_front.spin(forward, leftPct, percent);
-  left_back.spin(reverse, leftPct, percent);
-  right_front.spin(forward, rightPct, percent);
-  right_back.spin(reverse, rightPct, percent);
-}
-
+// Voltage-based drive (percent -100 to 100 mapped to +/-12 V).
+// Not used by auton yet; kept from the earlier branch.
 void driveVolts(double leftPct, double rightPct) {
   double leftVolts = leftPct * 12.0 / 100.0;
   double rightVolts = rightPct * 12.0 / 100.0;
@@ -303,7 +288,7 @@ void driveVolts(double leftPct, double rightPct) {
   right_front.spin(forward, rightVolts, voltageUnits::volt);
   right_back.spin(reverse, rightVolts, voltageUnits::volt);
 }
-=======
+
 /*---------------------------------------------------------------------------*/
 /*                        Autonomous motion functions                        */
 /*---------------------------------------------------------------------------*/
@@ -317,7 +302,6 @@ void turnToHeading(double targetDeg, double maxPct = 70, double timeoutMs = 2000
   const double kD = 6.0;          // damping: fights overshoot
   const double minPct = 10;       // enough power to actually move the drive
   const double tolerance = 1;   // degrees
->>>>>>> 6f00fb0903a9552ed6cd3003e927a9d065f0c801
 
   double start = Brain.timer(msec);
   double prevErr = wrap180(targetDeg - imu.rotation(degrees));
@@ -407,81 +391,11 @@ void liftFor(double deg, int speed = 100, bool wait = false) {
 /*                              Helper Functions                             */
 /*---------------------------------------------------------------------------*/
 
-<<<<<<< HEAD
-void drive(int left_speed, int right_speed, int wt) {
-  left_front.spin(forward, left_speed, pct);
-  left_back.spin(reverse, left_speed, pct);
-
-  right_front.spin(forward, right_speed, pct);
-  right_back.spin(reverse, right_speed, pct);
-
-  wait(wt, msec);
-}
-
-void drive_brake() {
-  left_front.stop(brake);
-  left_back.stop(brake);
-
-  right_front.stop(brake);
-  right_back.stop(brake);
-}
-
-=======
->>>>>>> 6f00fb0903a9552ed6cd3003e927a9d065f0c801
 void lift(directionType dir, int speed) {
   left_lift.spin(dir, speed, pct);
   right_lift.spin(dir, speed, pct);
 }
 
-<<<<<<< HEAD
-void auton_lift(directionType dir, int turns) {
-  left_lift.setVelocity(80, percent);
-  right_lift.setVelocity(80, percent);
-
-  left_lift.spinFor(dir, 360 * turns, deg, false);
-  right_lift.spinFor(dir, 360 * turns, deg, false);
-}
-
-void turn_to_angle(double target_angle, int max_speed) {
-  imu.setRotation(0, degrees);
-
-  timer tmr;
-  tmr.clear();
-
-  int settled_loops = 0;
-
-  while (true) {
-    double current_angle = imu.rotation(degrees);
-    double error = target_angle - current_angle;
-
-    if (fabs(error) < TURN_TOLERANCE_DEG) {
-      settled_loops++;
-      if (settled_loops >= TURN_SETTLE_LOOPS) {
-        break;
-      }
-    } else {
-      settled_loops = 0;
-    }
-
-    if (tmr.time(msec) > TURN_TIMEOUT_MS) {
-      break;
-    }
-
-    double speed = error * TURN_KP;
-
-    if (speed > max_speed) speed = max_speed;
-    if (speed < -max_speed) speed = -max_speed;
-
-    if (speed > 0 && speed < TURN_MIN_SPEED) speed = TURN_MIN_SPEED;
-    if (speed < 0 && speed > -TURN_MIN_SPEED) speed = -TURN_MIN_SPEED;
-
-    drive(speed, -speed, 10);
-  }
-  drive_brake();
-}
-
-=======
->>>>>>> 6f00fb0903a9552ed6cd3003e927a9d065f0c801
 bool is_tipping() {
   double current_pitch = imu.pitch(degrees);
   return fabs(current_pitch) > TIP_ANGLE_THRESHOLD_DEG;
@@ -504,18 +418,12 @@ void handle_tipping() {
 /*---------------------------------------------------------------------------*/
 
 void pre_auton(void) {
-<<<<<<< HEAD
-    initOdometry();
-    drive_brake();
-    clawPiston.set(true);
-=======
   Brain.Screen.print("Calibrating IMU");
   initOdometry();   // calibrates the IMU (blocks until done), zeroes encoders, starts odometry
   Brain.Screen.clearScreen();
   Brain.Screen.setCursor(1, 1);
   Brain.Screen.print("IMU Calibrated");
   drive_brake();
->>>>>>> 6f00fb0903a9552ed6cd3003e927a9d065f0c801
 }
 
 /*---------------------------------------------------------------------------*/
@@ -523,23 +431,6 @@ void pre_auton(void) {
 /*---------------------------------------------------------------------------*/
 
 void autonomous(void) {
-<<<<<<< HEAD
-  setPose(0, 0, 0);
-  auton_lift(fwd, 4);
-  wait(1, sec);
-  turnToHeading(-5);
-  inchDrive(1, 50);
-  turnToHeading(-90);
-  inchDrive(-3, 100);
-  inchDrive(2, 80);
-  inchDrive(-3, 100);
-  // setPose(0, 0, 0);
-  // inchDrive(24);           // 24 in straight ahead
-  // turnToHeading(90);       // face right
-  // inchDrive(24);           // 24 in to the right
-  // inchDrive(-12, 40);      // 12 in backward, capped at 40% speed
-// }
-=======
   // Examples:
   //   inchDrive(24);        // 24 in forward
   //   turnToHeading(90);    // face right (absolute heading)
@@ -565,7 +456,6 @@ void autonomous(void) {
   wait(0.3 ,sec);
   inchDrive(-40, 100);
 
->>>>>>> 6f00fb0903a9552ed6cd3003e927a9d065f0c801
 }
 
 /*---------------------------------------------------------------------------*/
@@ -617,38 +507,6 @@ void usercontrol(void) {
       right_lift.stop(hold);
     }
 
-<<<<<<< HEAD
-    // if (Controller1.ButtonR1.pressing()) {
-    //   clawMode ++;
-    //   if (clawMode % 2 == 0){
-    //     clawPiston.set(true);
-    //     wait(0.5, sec);
-    //   }
-    //   else{
-    //     clawPiston.set(false);
-    //     wait(0.5, sec);
-    //   }
-    // } 
-    
-    // if (Controller1.ButtonR2.pressing()) {
-    //   flipMode ++;
-    //   if (flipMode % 2 == 0){
-    //     flipPiston.set(true);
-    //     wait(0.5, sec);
-    //   }
-    //   else {
-    //     flipPiston.set(false);
-    //     wait(0.5, sec);
-    //   }
-    // } 
-  }
-    //handle_tipping();
-
-    // Brain.Screen.print("Right Speed: ", right_speed);
-    // Brain.Screen.newLine();
-    // Brain.Screen.print("Left Speed: ", left_speed);
-    // Brain.Screen.newLine();
-=======
     if (Controller1.ButtonR1.pressing()) {
       clawMode++;
       if (clawMode % 2 == 0) {
@@ -672,7 +530,6 @@ void usercontrol(void) {
         wait(0.5, sec);
       }
     }
->>>>>>> 6f00fb0903a9552ed6cd3003e927a9d065f0c801
 
     // handle_tipping();
 
