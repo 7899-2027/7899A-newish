@@ -37,7 +37,7 @@ motor left_lift = motor(PORT20, ratio18_1, false);
 motor right_lift = motor(PORT14, ratio18_1, true);
 
 int clawMode = 0;
-int flipMode = 0;
+motor claw(PORT12, ratio18_1, true);
 
 /*---------------------------------------------------------------------------*/
 /*                          Motor monitor (Brain screen)                     */
@@ -424,6 +424,7 @@ void pre_auton(void) {
   Brain.Screen.setCursor(1, 1);
   Brain.Screen.print("IMU Calibrated");
   drive_brake();
+  claw.stop(hold);
 }
 
 /*---------------------------------------------------------------------------*/
@@ -510,24 +511,14 @@ void usercontrol(void) {
     if (Controller1.ButtonR1.pressing()) {
       clawMode++;
       if (clawMode % 2 == 0) {
-        clawPiston.set(true);
+        claw.spin(fwd, 100, pct);
         wait(0.5, sec);
+        claw.stop();
       }
       else {
-        clawPiston.set(false);
+        claw.spin(reverse, 100, pct);
         wait(0.5, sec);
-      }
-    }
-
-    if (Controller1.ButtonR2.pressing()) {
-      flipMode++;
-      if (flipMode % 2 == 0) {
-        flipPiston.set(true);
-        wait(0.5, sec);
-      }
-      else {
-        flipPiston.set(false);
-        wait(0.5, sec);
+        claw.stop();
       }
     }
 
