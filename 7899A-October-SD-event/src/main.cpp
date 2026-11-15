@@ -35,6 +35,7 @@ motor right_back = motor(PORT9, ratio6_1, true);
 
 motor left_lift = motor(PORT20, ratio18_1, false);
 motor right_lift = motor(PORT14, ratio18_1, true);
+motor winch_lift = motor(PORT2, ratio18_1, true);
 
 int clawMode = 0;
 motor claw(PORT12, ratio18_1, true);
@@ -394,6 +395,7 @@ void liftFor(double deg, int speed = 100, bool wait = false) {
 void lift(directionType dir, int speed) {
   left_lift.spin(dir, speed, pct);
   right_lift.spin(dir, speed, pct);
+  winch_lift.spin(dir, -speed, pct);
 }
 
 bool is_tipping() {
@@ -437,26 +439,13 @@ void autonomous(void) {
   //   turnToHeading(90);    // face right (absolute heading)
   //   inchDrive(-12, 40);   // 12 in backward, capped at 40% speed
   liftFor(150);
-  inchDrive(14, 100);
-  wait(1, sec);
-  clawPiston.set(true);
-  wait(0.7, sec);
-  liftFor(1416);
-  inchDrive(13, 100);
-  flipPiston.set(true);
-  turnToHeading(90);
-  wait(200,msec);
-  inchDrive(33,100);
-  liftFor(-1166);
-  flipPiston.set(false);
-  wait(0.5, sec);
-  flipPiston.set(true);
-  liftFor(-600);
-  wait(1.1 ,sec);
-  clawPiston.set(false);
-  wait(0.3 ,sec);
-  inchDrive(-40, 100);
-
+  inchDrive(5, 100);
+  inchDrive(-5, 100);
+  inchDrive(10, 100);
+  turnToHeading(-90);
+  inchDrive(5, 100);
+  liftFor(-150);
+  inchDrive(-5, 100);
 }
 
 /*---------------------------------------------------------------------------*/
@@ -483,15 +472,6 @@ void usercontrol(void) {
 
     float slow_factor = Controller1.ButtonB.pressing() ? SLOW_MODE_FACTOR : 1.0f;
 
-    // if(Controller1.ButtonA.pressing()){
-    //   SlowDown++;
-    //   if(SlowDown % 2 = 1){
-    //     left_front.setVelocity(60, pct);
-    //     left_back.setVelocity(60, pct);
-    //     right_back.setVelocity(60, pct);
-    //     right_front.setVelocity(60, pct);
-    //   }
-    // }
     float left_speed = (forward_val + (TURN_SENSITIVITY_K * turn_val)) * slow_factor;
     float right_speed = (forward_val - (TURN_SENSITIVITY_K * turn_val)) * slow_factor;
 
