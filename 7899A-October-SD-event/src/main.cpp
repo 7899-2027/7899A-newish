@@ -435,16 +435,20 @@ void pre_auton(void) {
 
 void autonomous(void) {
   // Examples:
-  //   inchDrive(24);        // 24 in forward
+  //inchDrive(24);        // 24 in forward
   //   turnToHeading(90);    // face right (absolute heading)
   //   inchDrive(-12, 40);   // 12 in backward, capped at 40% speed
-  liftFor(150);
-  inchDrive(5, 100);
-  inchDrive(-5, 100);
-  inchDrive(10, 100);
-  turnToHeading(-90);
-  inchDrive(5, 100);
-  liftFor(-150);
+  claw.setStopping(hold);
+  clawMode = 1;
+  inchDrive(-10, 100);
+  inchDrive(33);
+  turnToHeading(-82, 40);
+  wait(0.5, sec);
+  inchDrive(25, 100);
+  claw.spin(fwd, 100, pct);
+  wait(0.5, sec);
+  claw.stop();
+  wait(0.5, sec);
   inchDrive(-5, 100);
 }
 
