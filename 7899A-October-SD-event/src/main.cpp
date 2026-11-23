@@ -441,14 +441,21 @@ void autonomous(void) {
   claw.setStopping(hold);
   clawMode = 1;
   inchDrive(-10, 100);
+//blue side variant 
+  // inchDrive(10, 100);
+  // inchDrive(-14, 100);
+// blue side variant
   inchDrive(33);
   turnToHeading(-82, 40);
   wait(0.5, sec);
-  inchDrive(25, 100);
+  inchDrive(26, 100);
   claw.spin(fwd, 100, pct);
-  wait(0.5, sec);
+  wait(0.2, sec);
   claw.stop();
-  wait(0.5, sec);
+  inchDrive(-2, 100);
+  wait(0.2, sec);
+  inchDrive(2, 100);
+  wait(0.2, sec);
   inchDrive(-5, 100);
 }
 
