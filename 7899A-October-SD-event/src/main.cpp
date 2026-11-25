@@ -39,6 +39,8 @@ motor winch_lift = motor(PORT2, ratio18_1, true);
 
 int clawMode = 0;
 motor claw(PORT12, ratio18_1, true);
+int preloadMode = 0;
+motor preload(PORT13, ratio18_1, true);
 
 /*---------------------------------------------------------------------------*/
 /*                          Motor monitor (Brain screen)                     */
@@ -427,6 +429,7 @@ void pre_auton(void) {
   Brain.Screen.print("IMU Calibrated");
   drive_brake();
   claw.stop(hold);
+  preload.stop(hold);
 }
 
 /*---------------------------------------------------------------------------*/
@@ -464,6 +467,14 @@ void autonomous(void) {
 /*---------------------------------------------------------------------------*/
 
 void usercontrol(void) {
+  Controller1.ButtonR2.pressed([]() {
+  if (preloadMode % 2 == 0) {
+    preload.spinFor(fwd, 180, degrees, 20, velocityUnits::pct, false);
+  } else {
+    preload.spinFor(reverse, 180, degrees, 20, velocityUnits::pct, false);
+  }
+  preloadMode++;
+});
   while (1) {
     displayMotorData();
 
@@ -513,12 +524,14 @@ void usercontrol(void) {
       }
     }
 
+  }
+
     // handle_tipping();
 
     wait(20, msec); // Sleep the task for a short amount of time to
                     // prevent wasted resources.
   }
-}
+
 
 //
 // Main will set up the competition functions and callbacks.
