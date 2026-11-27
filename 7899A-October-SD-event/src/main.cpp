@@ -437,22 +437,27 @@ void pre_auton(void) {
 /*---------------------------------------------------------------------------*/
 
 void autonomous(void) {
+  inchDrive(-3, 100);
 //blue side variant 
-  // inchDrive(10, 100);
-  // inchDrive(-14, 100);
+  // inchDrive(5, 100);
+  // inchDrive(-5, 100);
 // blue side variant
   inchDrive(33);
   turnToHeading(-82, 40);
-  wait(0.5, sec);
-  inchDrive(26, 100);
-  claw.spin(fwd, 100, pct);
+  wait(0.2, sec);
+  inchDrive(27, 100);
+  claw.spin(fwd, 100, pct); //change later
   wait(0.2, sec);
   claw.stop();
-  inchDrive(-2, 100);
+  inchDrive(14 ,100);
+  turnToHeading(-45, 40);
   wait(0.2, sec);
-  inchDrive(2, 100);
-  wait(0.2, sec);
-  inchDrive(-5, 100);
+  inchDrive(26 ,100);
+  claw.spin(fwd, 100, pct); //change later
+  inchDrive(5 ,100);
+  turnToHeading(-180 ,40);
+  inchDrive(14 ,100);
+  //claw stuff I can't do yet
 }
 
 /*---------------------------------------------------------------------------*/
