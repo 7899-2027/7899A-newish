@@ -35,9 +35,12 @@ motor right_back = motor(PORT9, ratio6_1, true);
 
 motor left_lift = motor(PORT20, ratio18_1, false);
 motor right_lift = motor(PORT14, ratio18_1, true);
+motor winch_lift = motor(PORT2, ratio18_1, true);
 
 int clawMode = 0;
-int flipMode = 0;
+motor claw(PORT12, ratio18_1, true);
+int preloadMode = 0;
+motor preload(PORT13, ratio18_1, true);
 
 /*---------------------------------------------------------------------------*/
 /*                          Motor monitor (Brain screen)                     */
@@ -278,6 +281,17 @@ void initOdometry() {
   task odomTask(odometryLoop);
 }
 
+// Voltage-based drive (percent -100 to 100 mapped to +/-12 V).
+// Not used by auton yet; kept from the earlier branch.
+void driveVolts(double leftPct, double rightPct) {
+  double leftVolts = leftPct * 12.0 / 100.0;
+  double rightVolts = rightPct * 12.0 / 100.0;
+  left_front.spin(forward, leftVolts, voltageUnits::volt);
+  left_back.spin(reverse, leftVolts, voltageUnits::volt);
+  right_front.spin(forward, rightVolts, voltageUnits::volt);
+  right_back.spin(reverse, rightVolts, voltageUnits::volt);
+}
+
 /*---------------------------------------------------------------------------*/
 /*                        Autonomous motion functions                        */
 /*---------------------------------------------------------------------------*/
@@ -328,7 +342,7 @@ void turnToHeading(double targetDeg, double maxPct = 70, double timeoutMs = 2000
 void inchDrive(double inches, double maxPct = 100, double timeoutMs = 4000) {
   const double kP = 0.5;          // percent per inch of distance error
   const double kD = 0.4;          // damping, reduces overshoot
-  const double kP_heading = 1.25; // percent per degree of heading error
+  const double kP_heading = 1.25;  // percent per degree of heading error
   const double minPct = 12;       // keeps the robot moving through the last inch
   const double tolerance = 0.5;   // inches
 
@@ -383,6 +397,7 @@ void liftFor(double deg, int speed = 100, bool wait = false) {
 void lift(directionType dir, int speed) {
   left_lift.spin(dir, speed, pct);
   right_lift.spin(dir, speed, pct);
+  winch_lift.spin(dir, -speed, pct);
 }
 
 bool is_tipping() {
@@ -399,16 +414,6 @@ void handle_tipping() {
   }
 }
 
-void shake(int durationMs, int speed = 100) {
-    int cycles = durationMs / 40;
-    for (int i = 0; i < cycles; i++) {
-        drivePercent(-speed, -speed);
-        wait(20, msec);
-        drivePercent(speed, speed);
-        wait(20, msec);
-    }
-}
-
 /*---------------------------------------------------------------------------*/
 /*                          Pre-Autonomous Functions                         */
 /*                                                                           */
@@ -423,6 +428,8 @@ void pre_auton(void) {
   Brain.Screen.setCursor(1, 1);
   Brain.Screen.print("IMU Calibrated");
   drive_brake();
+  claw.stop(hold);
+  preload.stop(hold);
 }
 
 /*---------------------------------------------------------------------------*/
@@ -430,37 +437,22 @@ void pre_auton(void) {
 /*---------------------------------------------------------------------------*/
 
 void autonomous(void) {
-  // Examples:
-  //   inchDrive(24);        // 24 in forward
-  //   turnToHeading(90);    // face right (absolute heading)
-  //   inchDrive(-12, 40);   // 12 in backward, capped at 40% speed
-  liftFor(200);
-  inchDrive(15, 100);
-  wait(1, sec);
-  clawPiston.set(true);
-  wait(0.7, sec);
-  liftFor(1416);
-  inchDrive(13, 100);
-  flipPiston.set(true);
-  turnToHeading(90);
-  wait(200,msec);
-  inchDrive(33,100);
-  liftFor(-1166);
-  flipPiston.set(true);
-  liftFor(-1566);
-  wait(1.1 ,sec);
-  shake(1000, 100);
-  clawPiston.set(false);
-  wait(0.3 ,sec);
-  inchDrive(-12, 100); //changed from 40 to 12
-
-  // turnToHeading(0); // skills (hopefully)
-  // wait(200, msec);
-  // inchDrive(60 ,100);
-  // turnToHeading(90);
-  // wait(200, msec);
-  // inchDrive(100, 100);
-
+//blue side variant 
+  // inchDrive(10, 100);
+  // inchDrive(-14, 100);
+// blue side variant
+  inchDrive(33);
+  turnToHeading(-82, 40);
+  wait(0.5, sec);
+  inchDrive(26, 100);
+  claw.spin(fwd, 100, pct);
+  wait(0.2, sec);
+  claw.stop();
+  inchDrive(-2, 100);
+  wait(0.2, sec);
+  inchDrive(2, 100);
+  wait(0.2, sec);
+  inchDrive(-5, 100);
 }
 
 /*---------------------------------------------------------------------------*/
@@ -468,6 +460,14 @@ void autonomous(void) {
 /*---------------------------------------------------------------------------*/
 
 void usercontrol(void) {
+  Controller1.ButtonR2.pressed([]() {
+  if (preloadMode % 2 == 0) {
+    preload.spinFor(fwd, 180, degrees, 20, velocityUnits::pct, false);
+  } else {
+    preload.spinFor(reverse, 180, degrees, 20, velocityUnits::pct, false);
+  }
+  preloadMode++;
+});
   while (1) {
     displayMotorData();
 
@@ -487,15 +487,6 @@ void usercontrol(void) {
 
     float slow_factor = Controller1.ButtonB.pressing() ? SLOW_MODE_FACTOR : 1.0f;
 
-    // if(Controller1.ButtonA.pressing()){
-    //   SlowDown++;
-    //   if(SlowDown % 2 = 1){
-    //     left_front.setVelocity(60, pct);
-    //     left_back.setVelocity(60, pct);
-    //     right_back.setVelocity(60, pct);
-    //     right_front.setVelocity(60, pct);
-    //   }
-    // }
     float left_speed = (forward_val + (TURN_SENSITIVITY_K * turn_val)) * slow_factor;
     float right_speed = (forward_val - (TURN_SENSITIVITY_K * turn_val)) * slow_factor;
 
@@ -515,33 +506,25 @@ void usercontrol(void) {
     if (Controller1.ButtonR1.pressing()) {
       clawMode++;
       if (clawMode % 2 == 0) {
-        clawPiston.set(true);
+        claw.spin(fwd, 100, pct);
         wait(0.5, sec);
+        claw.stop();
       }
       else {
-        clawPiston.set(false);
+        claw.spin(reverse, 100, pct);
         wait(0.5, sec);
+        claw.stop();
       }
     }
 
-    if (Controller1.ButtonR2.pressing()) {
-      flipMode++;
-      if (flipMode % 2 == 0) {
-        flipPiston.set(true);
-        wait(0.5, sec);
-      }
-      else {
-        flipPiston.set(false);
-        wait(0.5, sec);
-      }
-    }
+  }
 
     // handle_tipping();
 
     wait(20, msec); // Sleep the task for a short amount of time to
                     // prevent wasted resources.
   }
-}
+
 
 //
 // Main will set up the competition functions and callbacks.
