@@ -8,6 +8,7 @@
 /*----------------------------------------------------------------------------*/
 
 #include "vex.h"
+#include <iostream>
 
 using namespace vex;
 
@@ -301,17 +302,20 @@ void driveVolts(double leftPct, double rightPct) {
 //   maxPct     : turn speed cap in percent (0-100)
 //   timeoutMs  : give up after this long
 void turnToHeading(double targetDeg, double maxPct = 70, double timeoutMs = 2000) {
-  const double kP = 0.2;          // percent per degree of error
-  const double kD = 6.0;          // damping: fights overshoot
+  const double kP = 0.6;          // percent per degree of error
+  const double kD = 5;          // damping: fights overshoot
   const double minPct = 10;       // enough power to actually move the drive
   const double tolerance = 1;   // degrees
 
   double start = Brain.timer(msec);
   double prevErr = wrap180(targetDeg - imu.rotation(degrees));
   int settled = 0;
+  float totalTime = 0;
 
   while (Brain.timer(msec) - start < timeoutMs) {
-    double err = wrap180(targetDeg - imu.rotation(degrees));
+    totalTime += (Brain.timer(msec) - start) * 0.001;
+    float currentRotation = imu.rotation(degrees);
+    double err = wrap180(targetDeg - currentRotation);
 
     // Only finish after staying inside tolerance for 8 loops (80 ms)
     if (fabs(err) < tolerance) {
@@ -325,9 +329,10 @@ void turnToHeading(double targetDeg, double maxPct = 70, double timeoutMs = 2000
 
     if (v > maxPct)  v = maxPct;
     if (v < -maxPct) v = -maxPct;
-    if (fabs(v) < minPct) v = (err > 0) ? minPct : -minPct;
+    //if (fabs(v) < minPct) v = (err > 0) ? minPct : -minPct;
 
     drivePercent(v, -v);     // positive error = turn clockwise
+    //std::cout << totalTime << ", " << currentRotation << std::endl; //for testing 
     wait(10, msec);
   }
   drive_brake();
@@ -340,8 +345,8 @@ void turnToHeading(double targetDeg, double maxPct = 70, double timeoutMs = 2000
 //   maxPct     : speed cap in percent (0-100)
 //   timeoutMs  : give up after this long
 void inchDrive(double inches, double maxPct = 100, double timeoutMs = 4000) {
-  const double kP = 0.5;          // percent per inch of distance error
-  const double kD = 0.4;          // damping, reduces overshoot
+  const double kP = 3;          // percent per inch of distance error
+  const double kD = 0.12;          // damping, reduces overshoot
   const double kP_heading = 1.25;  // percent per degree of heading error
   const double minPct = 12;       // keeps the robot moving through the last inch
   const double tolerance = 0.5;   // inches
@@ -353,8 +358,10 @@ void inchDrive(double inches, double maxPct = 100, double timeoutMs = 4000) {
   double start = Brain.timer(msec);
   double prevError = inches;
   int settled = 0;
+  float totalTime = 0;
 
   while (Brain.timer(msec) - start < timeoutMs) {
+    totalTime += (Brain.timer(msec) - start) * 0.001;
     // Distance traveled since the call started
     double traveled = ((leftSideDegrees()  - startLeft) +
                        (rightSideDegrees() - startRight)) / 2.0 * IN_PER_DEG;
@@ -373,12 +380,14 @@ void inchDrive(double inches, double maxPct = 100, double timeoutMs = 4000) {
     // Clamp to maxPct, but never below minPct (keeps the sign)
     if (fwd > maxPct)  fwd = maxPct;
     if (fwd < -maxPct) fwd = -maxPct;
-    if (fabs(fwd) < minPct) fwd = (error > 0) ? minPct : -minPct;
+    //if (fabs(fwd) < minPct) fwd = (error > 0) ? minPct : -minPct;
 
     // Steer back toward the starting heading (positive error = turn clockwise)
     double turn = kP_heading * wrap180(holdHeading - imu.rotation(degrees));
+    turn = turn * fabs(fwd / 100);
 
     drivePercent(fwd + turn, fwd - turn);
+    std::cout << totalTime << ", " << traveled << ", " << turn << ", " << fwd << std::endl;
     wait(10, msec);
   }
   drive_brake();
@@ -437,27 +446,34 @@ void pre_auton(void) {
 /*---------------------------------------------------------------------------*/
 
 void autonomous(void) {
-  inchDrive(-3, 100);
+  std::cout << "------------------------" << std::endl;
+  inchDrive(50, 100);
+  /*
+  inchDrive(-5, 100);
 //blue side variant 
   // inchDrive(5, 100);
   // inchDrive(-5, 100);
 // blue side variant
-  inchDrive(33);
-  turnToHeading(-82, 40);
+  inchDrive(30, 100);
+  turnToHeading(-90, 40);
   wait(0.2, sec);
-  inchDrive(27, 100);
+  inchDrive(28, 100);
   claw.spin(fwd, 100, pct); //change later
   wait(0.2, sec);
   claw.stop();
-  inchDrive(14 ,100);
+
+  inchDrive(-25, 100);
   turnToHeading(-45, 40);
   wait(0.2, sec);
-  inchDrive(26 ,100);
-  claw.spin(fwd, 100, pct); //change later
-  inchDrive(5 ,100);
+  inchDrive(45 ,100);
+  claw.spin(reverse, 100, pct); //change later
+  wait(0.2, sec);
+  claw.stop();
+  inchDrive(15 ,100);
   turnToHeading(-180 ,40);
-  inchDrive(14 ,100);
-  //claw stuff I can't do yet
+  inchDrive(40 ,100);
+  // //claw stuff I can't do yet
+  */
 }
 
 /*---------------------------------------------------------------------------*/
